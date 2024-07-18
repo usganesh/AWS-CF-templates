@@ -1,0 +1,67 @@
+Resources:
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for my EC2 instance
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0   # Allow SSH access from anywhere
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0   # Allow HTTP access from anywhere
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0   # Allow HTTPS access from anywhere
+
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.medium
+      ImageId: ami-0b72821e2f351e396  # Specify your desired AMI ID
+      SecurityGroupIds:
+        - !GetAtt MySecurityGroup.GroupId  # Reference to the security group created above
+      UserData:
+        Fn::Base64: |
+
+          #!/bin/bash
+          #--------install Docker CE ------------------------------------
+          sudo yum update -y && sudo yum install docker unzip -y 
+          sudo systemctl enable docker
+          sudo systemctl start docker 
+          sudo usermod -aG docker $USER 
+          sudo usermod -aG docker ec2-user
+
+          #--------install AWS CLI ------------------------------------
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install
+          aws --version 
+
+          #--------install KUBECTL ------------------------------------
+          curl -o kubectl https://amazon-eks.s3.us-west-2.amazonaws.com/1.16.8/2020-04-16/bin/linux/amd64/kubectl
+          chmod +x ./kubectl
+          mkdir -p $HOME/bin && cp ./kubectl $HOME/bin/kubectl && export PATH=$PATH:$HOME/bin
+          kubectl version --client
+
+          #--------install EKSCTL ------------------------------------
+
+          curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+          sudo mv /tmp/eksctl /usr/bin
+          eksctl version 
+         
+          #-----------Adding Lab-key-----------------------------------
+          echo "ssh-ed25519 ***************yourkey**********" >> /home/ec2-user/.ssh/authorized_keys
+Outputs:
+  InstanceId:
+    Description: Instance ID of the newly created EC2 instance
+    Value: !Ref MyEC2Instance
+  SecurityGroupId:
+    Description: Security Group ID of the newly created EC2 instance
+    Value: !Ref MySecurityGroup
+  PublicIp:
+    Description: Public IP address of the newly created EC2 instance
+    Value: !GetAtt MyEC2Instance.PublicIp
